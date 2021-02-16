@@ -72,6 +72,15 @@ trait Repository {
     db.publishers.find().toFuture()
   }
 
+  def newJob(job : Job) = {
+    db.jobs.insertOne(job).toFuture()
+  }
+
+  def updateJob(id : Int, job : Job) = {
+    val oldJob = BsonDocument(("referencenumber" , id))
+    db.jobs.findOneAndReplace(oldJob, job).toFuture()
+  }
+
 }
 
 object db{
