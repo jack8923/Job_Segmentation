@@ -2,21 +2,27 @@ package Job_Segmentation
 
 import Job_Segmentation.Repository._
 import Job_Segmentation.RepositoryContext._
+
 import scala.util.parsing.json.JSONObject
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
-import com.fasterxml.jackson.databind.JsonNode
-import spray.json.DefaultJsonProtocol
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 
-//import Job_Segmentation.PublisherJobJson._
-//
-//object PublisherJobJson extends SprayJsonSupport with DefaultJsonProtocol{
-//  implicit val jobFormat = jsonFormat12(Job.apply)
-//  implicit val publisherJobFormat = jsonFormat2(PublisherJob.apply)
-//}
+import net.liftweb.json
+import net.liftweb.json.{DefaultFormats, JsonAST}
+import net.liftweb.json.JsonAST.RenderSettings.compact
+import net.liftweb.json.Serialization.write
+
+import java.io.File
+import java.io.PrintWriter
+
+import spray.json._
+import DefaultJsonProtocol._
+import Job_Segmentation.ServiceApi.ModelJson.jobJson
+
 
 object Service extends App with Repository {
+
+  implicit val formats: DefaultFormats = DefaultFormats
 
   def jobToMap(job : Job): Map[String, Any] =
     (Map[String, Any]() /: job.getClass.getDeclaredFields) {
@@ -69,7 +75,7 @@ object Service extends App with Repository {
   }
 
 
-  def getGroupMap(): Future[Map[JobGroup, Seq[Job]]] = {
+  def getGroupJobMap(): Future[Map[JobGroup, Seq[Job]]] = {
     for{
       allJobs <- getAllJobs()
 
@@ -88,7 +94,7 @@ object Service extends App with Repository {
 
   def getPublisherAndJobGroupMap(publishers : Seq[Publisher], groups : Seq[JobGroup]): Future[Map[Publisher, Seq[JobGroup]]] = Future{
     publishers.map{publisher =>
-      publisher -> groups.filter(group => group.sponsoredPublishers.contains(publisher))
+      publisher -> groups.filter(group => group.sponsoredPublishers.map(value => value.name == publisher.name).foldLeft(false)(_ || _))
     }.toMap
   }
 
@@ -96,7 +102,7 @@ object Service extends App with Repository {
     for{
       allPublishers <- getAllPublishers()
       allJobGroups <- getAllGroups()
-      groupsJobMap <- getGroupMap()
+      groupsJobMap <- getGroupJobMap()
 
       publisherJobGroupMap <- getPublisherAndJobGroupMap(allPublishers, allJobGroups)
 
@@ -104,31 +110,38 @@ object Service extends App with Repository {
     } yield publisherJobMap
   }
 
-  def getPulisherAndJobMap(): Future[Map[String, Seq[Job]]] = {
+
+  def getPublisherJobMap(): Future[Map[String, Seq[Job]]] = {
     for{
       publisherJobSeq <- getPublisherAndJobSeq()
       publisherJobMap = publisherJobSeq.map(value => value._1.name -> value._2.filter(job => job != null)).toMap
+      val seqSeqJob = publisherJobMap.map { value =>
+        val fileName = s"/Users/rohitchandwani/Desktop/${value._1}.json"
+        val writer = new PrintWriter(new File(fileName))
+        writer.write(value._2.toJson.toString())
+        writer.close()
+
+        for{
+          publisher <- getPublisherByName(value._1)
+          updatedPublisher = updatePublisher(publisher, fileName)
+        }yield updatedPublisher.onComplete{case Success(n) => println(n)}
+
+      }
     } yield publisherJobMap
   }
 
-  def getPublisherJobJSON() = {
-    for{
-      publisherJobMap <- getPulisherAndJobMap
-    } yield JSONObject(publisherJobMap)
-  }
-
-  val publisherJobMap = getPulisherAndJobMap()
-
-  publisherJobMap.onComplete{
-    case Success(value) => println(value("Glassdoor").size)
-    case Failure(exception) => println(exception.getMessage)
-  }
-
-//  val groupJobMap = getGroupMap()
-//
-//  groupJobMap.onComplete{
+//  val publisherJobMap = getPublisherJobMap()
+//  publisherJobMap.onComplete{
 //    case Success(value) => println(value)
 //    case Failure(exception) => println(exception.getMessage)
 //  }
+
+  val groupJobMap = getPublisherJobMap()
+
+  groupJobMap.onComplete{
+    case Success(value) => println(value)
+    case Failure(exception) => println(exception.getMessage)
+  }
+
 
 }
