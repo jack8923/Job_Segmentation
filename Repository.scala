@@ -80,6 +80,18 @@ trait Repository {
     val oldJob = BsonDocument(("referencenumber" , id))
     db.jobs.findOneAndReplace(oldJob, job).toFuture()
   }
+  
+  def getPublisherByName(name : String) = {
+    db.publishers.find(equal("name",name)).first().toFuture()
+  }
+
+
+  def updatePublisher(publisher : Publisher, fileName : String) = {
+    val currPublisherBson = BsonDocument(("id" , publisher.id))
+    val updatedPublisher = Publisher(publisher.id,publisher.name,true,publisher.clientId,Some(fileName))
+//    db.publishers.findOneAndReplace(currPublisherBson, updatedPublisher).toFuture()
+    db.publishers.updateOne(equal("name",publisher.name),set("outboundFileName",fileName)).toFuture()
+  }
 
 }
 
