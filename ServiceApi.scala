@@ -31,7 +31,13 @@ object ServiceApi {
           }
         }
       } ~ path("map"){
-        onComplete(getPulisherAndJobMap()) {
+        onComplete(getPublisherJobMap()) {
+          _ match{
+            case Success(m) => complete(StatusCodes.OK, m)
+          }
+        }
+      }~ path("publishers"){
+        onComplete(getAllPublishers()) {
           _ match{
             case Success(m) => complete(StatusCodes.OK, m)
           }
